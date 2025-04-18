@@ -1,3 +1,4 @@
+
 import streamlit as st
 import geopandas as gpd
 import folium
@@ -11,34 +12,29 @@ import os
 st.set_page_config(page_title="Pedestrian Demand Map", layout="wide")
 
 st.title("🚶‍♂️ Pedestrian Demand Mapping Tool")
+st.code("🔁 This is the latest build – tmp_path is used.")
 st.write(
-    """
+    '''
     1. Upload a GeoPackage (`.gpkg`)  
     2. Pick the layer and numeric fields you want to display  
     3. Explore the interactive Folium map  
-    """
+    '''
 )
 
-# ─────────────────────────────────────────  UPLOAD  ────────────────────────────────────────── #
 uploaded_file = st.file_uploader("Upload your GeoPackage", type=["gpkg"])
 
 if uploaded_file:
-    # Write the upload to a real temp file (required for GDAL / pyogrio)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".gpkg") as tmp:
         tmp.write(uploaded_file.read())
         tmp_path = tmp.name
 
     try:
-        # ─────────────────────────────  LAYER SELECTION  ───────────────────────────── #
         layers = fiona.listlayers(tmp_path)
         layer_choice = st.selectbox("Select a layer:", layers)
-
-        # ─────────────────────────────  READ GEODATAFRAME  ─────────────────────────── #
         gdf = gpd.read_file(tmp_path, layer=layer_choice)
         st.success(f"Loaded {len(gdf):,} features from **{layer_choice}**")
         st.write("Preview:", gdf.head())
 
-        # ─────────────────────────────  FIELD SELECTION  ───────────────────────────── #
         numeric_fields = gdf.select_dtypes(include=["number"]).columns.tolist()
         if not numeric_fields:
             st.error("No numeric fields found in this layer.")
@@ -50,7 +46,6 @@ if uploaded_file:
         )
 
         if selected_fields:
-            # Ensure WGS‑84 for Folium
             if gdf.crs is None or gdf.crs.to_string() != "EPSG:4326":
                 gdf = gdf.to_crs(epsg=4326)
 
@@ -97,6 +92,5 @@ if uploaded_file:
         st.error(f"Could not read file: {e}")
 
     finally:
-        # Clean up temp file
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
