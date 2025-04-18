@@ -26,7 +26,7 @@ if uploaded_file:
         layers = fiona.listlayers(tmp_path)
         layer_choice = st.selectbox("Select a layer:", layers)
 
-        # Load GeoDataFrame
+        # Load GeoDataFrame (✔ fixed line)
         gdf = gpd.read_file(tmp_path, layer=layer_choice)
 
         # Show preview
