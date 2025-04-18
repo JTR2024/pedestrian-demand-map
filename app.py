@@ -14,7 +14,7 @@ st.title("🚶‍♂️ Pedestrian Demand Mapping Tool")
 st.write(
     """
     1. Upload a GeoPackage (`.gpkg`)  
-    2. Choose the layer and numeric attribute(s) you want to visualise  
+    2. Pick the layer and numeric fields you want to display  
     3. Explore the interactive Folium map  
     """
 )
@@ -30,11 +30,11 @@ if uploaded_file:
 
     try:
         # ─────────────────────────────  LAYER SELECTION  ───────────────────────────── #
-        layers = fiona.listlayers(tmp_path)          # <= USE tmp_path
+        layers = fiona.listlayers(tmp_path)
         layer_choice = st.selectbox("Select a layer:", layers)
 
         # ─────────────────────────────  READ GEODATAFRAME  ─────────────────────────── #
-        gdf = gpd.read_file(tmp_path, layer=layer_choice)   # <= USE tmp_path
+        gdf = gpd.read_file(tmp_path, layer=layer_choice)
         st.success(f"Loaded {len(gdf):,} features from **{layer_choice}**")
         st.write("Preview:", gdf.head())
 
@@ -44,9 +44,9 @@ if uploaded_file:
             st.error("No numeric fields found in this layer.")
             st.stop()
 
-        default = ["DemandRank"] if "DemandRank" in numeric_fields else []
+        default_selection = ["DemandRank"] if "DemandRank" in numeric_fields else []
         selected_fields = st.multiselect(
-            "Select numeric fields to map:", numeric_fields, default=default
+            "Select numeric fields to map:", numeric_fields, default=default_selection
         )
 
         if selected_fields:
