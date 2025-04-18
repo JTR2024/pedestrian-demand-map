@@ -6,44 +6,60 @@ import branca.colormap as cm
 from folium.features import GeoJsonTooltip
 from streamlit_folium import st_folium
 import tempfile
+import os
 
 st.set_page_config(page_title="Pedestrian Demand Map", layout="wide")
 
 st.title("🚶‍♂️ Pedestrian Demand Mapping Tool")
-st.write("Upload a GeoPackage, select a layer and fields, and generate an interactive map.")
+st.write(
+    """
+    1. Upload a GeoPackage (`.gpkg`)  
+    2. Choose the layer and numeric attribute(s) you want to visualise  
+    3. Explore the interactive Folium map  
+    """
+)
 
-# File upload
-uploaded_file = st.file_uploader("Upload your GeoPackage (.gpkg)", type=["gpkg"])
+# ─────────────────────────────────────────  UPLOAD  ────────────────────────────────────────── #
+uploaded_file = st.file_uploader("Upload your GeoPackage", type=["gpkg"])
 
 if uploaded_file:
-    # Save uploaded file to a temporary file on disk
+    # Write the upload to a real temp file (required for GDAL / pyogrio)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".gpkg") as tmp:
         tmp.write(uploaded_file.read())
         tmp_path = tmp.name
 
     try:
-        # List layers
-        layers = fiona.listlayers(tmp_path)
+        # ─────────────────────────────  LAYER SELECTION  ───────────────────────────── #
+        layers = fiona.listlayers(tmp_path)          # <= USE tmp_path
         layer_choice = st.selectbox("Select a layer:", layers)
 
-        # Load GeoDataFrame (✔ fixed line)
-        gdf = gpd.read_file(tmp_path, layer=layer_choice)
+        # ─────────────────────────────  READ GEODATAFRAME  ─────────────────────────── #
+        gdf = gpd.read_file(tmp_path, layer=layer_choice)   # <= USE tmp_path
+        st.success(f"Loaded {len(gdf):,} features from **{layer_choice}**")
+        st.write("Preview:", gdf.head())
 
-        # Show preview
-        st.write("Data Preview:", gdf.head())
-
-        # Select numeric fields
+        # ─────────────────────────────  FIELD SELECTION  ───────────────────────────── #
         numeric_fields = gdf.select_dtypes(include=["number"]).columns.tolist()
-        selected_fields = st.multiselect("Select fields to visualize:", numeric_fields, default=["DemandRank"] if "DemandRank" in numeric_fields else [])
+        if not numeric_fields:
+            st.error("No numeric fields found in this layer.")
+            st.stop()
+
+        default = ["DemandRank"] if "DemandRank" in numeric_fields else []
+        selected_fields = st.multiselect(
+            "Select numeric fields to map:", numeric_fields, default=default
+        )
 
         if selected_fields:
-            # Convert CRS to WGS84 for Folium
+            # Ensure WGS‑84 for Folium
             if gdf.crs is None or gdf.crs.to_string() != "EPSG:4326":
                 gdf = gdf.to_crs(epsg=4326)
 
-            # Create Folium map
             center = gdf.geometry.unary_union.centroid
-            m = folium.Map(location=[center.y, center.x], zoom_start=10, tiles="CartoDB positron")
+            m = folium.Map(
+                location=[center.y, center.x],
+                zoom_start=10,
+                tiles="CartoDB positron",
+            )
 
             for field in selected_fields:
                 colormap = cm.linear.Blues_09.scale(gdf[field].min(), gdf[field].max())
@@ -54,27 +70,33 @@ if uploaded_file:
                     fields=selected_fields,
                     aliases=[f.replace("_", " ").title() for f in selected_fields],
                     localize=True,
+                    sticky=False,
                     labels=True,
-                    sticky=False
                 )
 
                 folium.GeoJson(
                     gdf,
                     name=field,
-                    style_function=lambda feature, field=field: {
-                        "fillColor": colormap(feature["properties"][field]) if feature["properties"][field] is not None else "#ccc",
+                    style_function=lambda feat, field=field: {
+                        "fillColor": colormap(feat["properties"][field])
+                        if feat["properties"][field] is not None
+                        else "#cccccc",
                         "color": "black",
                         "weight": 0.5,
                         "fillOpacity": 0.7,
                     },
-                    tooltip=tooltip
+                    tooltip=tooltip,
                 ).add_to(m)
 
             folium.LayerControl().add_to(m)
 
-            # Display map
             st.subheader("🗺️ Interactive Map")
             st_folium(m, width=1000, height=600)
 
     except Exception as e:
-        st.error(f"Error reading file: {e}")
+        st.error(f"Could not read file: {e}")
+
+    finally:
+        # Clean up temp file
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
